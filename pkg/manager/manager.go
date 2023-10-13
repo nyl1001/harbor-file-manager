@@ -129,7 +129,7 @@ func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, har
 }
 
 func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
-	err := initVmImagesRootCacheDir(hfM.hifConf.RootCacheDir)
+	err := initRootCacheDir(hfM.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -205,7 +205,7 @@ func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag,
 }
 
 func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error) {
-	err := initVmImagesRootCacheDir(hfM.hifConf.RootCacheDir)
+	err := initRootCacheDir(hfM.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
 	}

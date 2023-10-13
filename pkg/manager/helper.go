@@ -75,7 +75,7 @@ func createOCIImageLayout(ociImageDir string) error {
 		}
 	}`, configDigest))
 
-	if err := createFile(filepath.Join(blobsDir, "sha256", configDigest), configJSON); err != nil {
+	if err = createFile(filepath.Join(blobsDir, "sha256", configDigest), configJSON); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func createHarborRepository(ctx context.Context, harborUsername, harborPassword,
 	}
 
 	// Commit用于创建仓库
-	if err := destRef.Commit(ctx, nil); err != nil {
+	if err = destRef.Commit(ctx, nil); err != nil {
 		return err
 	}
 	return nil
@@ -162,8 +162,7 @@ func checkRemoteRepoExists(ctx context.Context, harborUsername, harborPassword, 
 	// 解析仓库地址
 	refCtx, err := alltransports.ParseImageName(harborImage)
 	if err != nil {
-		fmt.Printf("Error checkRemoteRepoExists parsing Harbor image name: %v\n", err)
-		return false, err
+		return false, fmt.Errorf("error checkRemoteRepoExists call alltransports.ParseImageName: %s", err.Error())
 	}
 
 	// 获取远程镜像
@@ -172,8 +171,7 @@ func checkRemoteRepoExists(ctx context.Context, harborUsername, harborPassword, 
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil
 		}
-		fmt.Printf("Error checkRemoteRepoExists NewImageSource: %v\n", err)
-		return false, err
+		return false, fmt.Errorf("error checkRemoteRepoExists call checkRemoteRepoExists NewImageSource: %s", err.Error())
 	}
 
 	// 检查镜像是否存在于本地
@@ -217,26 +215,22 @@ func uploadLocalImageToHarbor(ctx context.Context, imageDirectory, harborUsernam
 	// 创建一个签名策略
 	policy, err := signature.NewPolicyFromBytes([]byte(defaultPolicy))
 	if err != nil {
-		fmt.Printf("无法创建签名策略：%v\n", err)
-		return err
+		return fmt.Errorf("error uploadLocalImageToHarbor call signature.NewPolicyFromBytes, can not create signature policy: %s", err.Error())
 	}
 
 	policyContext, err := signature.NewPolicyContext(policy)
 	if err != nil {
-		fmt.Printf("Error uploadImageToHarbor creating policy context: %v\n", err)
-		return err
+		return fmt.Errorf("error uploadLocalImageToHarbor call signature.NewPolicyContext: %s", err.Error())
 	}
 
 	destCtx, err := alltransports.ParseImageName(harborImage)
 	if err != nil {
-		fmt.Printf("Error uploadImageToHarbor parsing Harbor image name: %v\n", err)
-		return err
+		return fmt.Errorf("error uploadLocalImageToHarbor call alltransports.ParseImageName: %s", err.Error())
 	}
 
 	srcCtx, err := directory.NewReference(imageDirectory)
 	if err != nil {
-		fmt.Printf("Error uploadImageToHarbor parsing Harbor image name: %v\n", err)
-		return err
+		return fmt.Errorf("error uploadLocalImageToHarbor call directory.NewReference: %s", err.Error())
 	}
 
 	_, err = copy.Image(ctx, policyContext, destCtx, srcCtx, &copy.Options{
@@ -245,15 +239,13 @@ func uploadLocalImageToHarbor(ctx context.Context, imageDirectory, harborUsernam
 		SourceCtx:      sys,
 	})
 	if err != nil {
-		fmt.Printf("Error uploadImageToHarbor uploading image to Harbor: %v\n", err)
-		return err
+		return fmt.Errorf("error uploadLocalImageToHarbor copy.Image: %s", err.Error())
 	}
 
-	fmt.Printf("Image '%s' uploaded to Harbor successfully!\n", harborImage)
 	return nil
 }
 
-func initVmImagesRootCacheDir(cacheDir string) error {
+func initRootCacheDir(cacheDir string) error {
 	if cacheDir == "" {
 		cacheDir = defaultRootHarborCacheDir
 	}

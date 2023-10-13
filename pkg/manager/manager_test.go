@@ -9,6 +9,11 @@ import (
 	"testing"
 )
 
+const (
+	defaultHarborUserName     = "xxx"
+	defaultHarborUserPassword = "xxxx"
+)
+
 func TestMainThread(t *testing.T) {
 	// 本地文件路径
 	//localFilePath := "/home/q1/deploy.yml"
@@ -39,8 +44,8 @@ func TestMainThread(t *testing.T) {
 	// Harbor仓库地址和目标文件路径
 	harborRepo := "hub.xxxxx.com/vmimages/nieyinliang-test-2"
 	harborTag := "latest"
-	harborUsername := "xxxxxxx"
-	harborPassword := "xxxxxxx"
+	harborUsername := defaultHarborUserName
+	harborPassword := defaultHarborUserPassword
 
 	// 初始化容器引擎
 	ctx := context.Background()
@@ -106,8 +111,8 @@ func TestMainThread(t *testing.T) {
 
 func TestDeleteRepo(t *testing.T) {
 
-	harborUsername := "xxx"
-	harborPassword := "xxxxx"
+	harborUsername := defaultHarborUserName
+	harborPassword := defaultHarborUserPassword
 
 	// 初始化容器引擎
 

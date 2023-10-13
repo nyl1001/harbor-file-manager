@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/containers/image/v5/types"
 )
 
 func TestMainThread(t *testing.T) {
@@ -65,16 +63,7 @@ func TestMainThread(t *testing.T) {
 	fmt.Println("File uploaded to Harbor successfully!")
 
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag, &types.BlobInfo{
-		Digest:               blobInfo.Digest,
-		Size:                 0,
-		URLs:                 nil,
-		Annotations:          nil,
-		MediaType:            "",
-		CompressionOperation: 0,
-		CompressionAlgorithm: nil,
-		CryptoOperation:      0,
-	})
+	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag, string(blobInfo.Digest))
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return

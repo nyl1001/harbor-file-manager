@@ -11,13 +11,16 @@ import (
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
+	"github.com/opencontainers/go-digest"
 )
 
 type HarborFileManager interface {
 	CreateRepositoryIfNotExist(ctx context.Context, harborRepo string, tag string) error
 	UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error)
-	DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error
-	GetDownloadReader(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error)
+	DownloadFile(ctx context.Context, harborRepo, tag, digest string, targetFilePath string) error
+	GetDownloadReader(ctx context.Context, harborRepo, tag, digest string) (io.ReadCloser, int64, error)
+	DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error
+	GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error)
 	DeleteImage(ctx context.Context, harborRepo, tag string) error
 	DeleteRepo(harborAPI, projectName, repoName string) error
 }
@@ -125,7 +128,83 @@ func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, har
 	return &blobInfo, nil
 }
 
-func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error) {
+func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
+	err := initVmImagesRootCacheDir(hfM.hifConf.RootCacheDir)
+	if err != nil {
+		return nil, 0, err
+	}
+	// 准备下载的源路径
+	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s:%s", harborRepo, tag))
+	if err != nil {
+		return nil, 0, err
+	}
+	// 创建 SystemContext，设置 Harbor 账号密码
+	sys := &types.SystemContext{
+		DockerAuthConfig: &types.DockerAuthConfig{
+			Username: hfM.hifConf.HarborUserName,
+			Password: hfM.hifConf.HarborUserPassword,
+		},
+		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+	}
+
+	// 使用 image.NewImage 创建一个镜像对象
+	srcImg, err := srcRef.NewImageSource(ctx, sys)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 获取文件内容，并检查并命中本地缓存
+	reader, size, err := srcImg.GetBlob(ctx, types.BlobInfo{
+		Digest:               digest.Digest(digestStr),
+		Size:                 0,
+		URLs:                 nil,
+		Annotations:          nil,
+		MediaType:            "",
+		CompressionOperation: 0,
+		CompressionAlgorithm: nil,
+		CryptoOperation:      0,
+	}, blobinfocache.DefaultCache(sys))
+	if err != nil {
+		return nil, 0, err
+	}
+	return reader, size, nil
+}
+
+func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath, digestStr string) error {
+	// 从Harbor下载文件
+	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, tag, digestStr)
+	if err != nil {
+		return err
+	}
+
+	defer func(reader io.ReadCloser) {
+		err = reader.Close()
+		if err != nil {
+
+		}
+	}(reader)
+
+	// 创建本地文件
+	localFile, err := os.Create(targetFilePath)
+	if err != nil {
+		return err
+	}
+	defer func(localFile *os.File) {
+		err = localFile.Close()
+		if err != nil {
+
+		}
+	}(localFile)
+
+	// 将文件内容复制到本地文件
+	_, err = io.Copy(localFile, reader)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error) {
 	err := initVmImagesRootCacheDir(hfM.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
@@ -156,6 +235,49 @@ func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo,
 		return nil, 0, err
 	}
 	return reader, size, nil
+}
+
+func (hfM *harborFileManager) DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
+	// 从Harbor下载文件
+	reader, _, err := hfM.GetDownloadReaderWithBlob(ctx, harborRepo, tag, &types.BlobInfo{
+		Digest:               blobInfo.Digest,
+		Size:                 0,
+		URLs:                 nil,
+		Annotations:          nil,
+		MediaType:            "",
+		CompressionOperation: 0,
+		CompressionAlgorithm: nil,
+		CryptoOperation:      0,
+	})
+	if err != nil {
+		return err
+	}
+
+	defer func(reader io.ReadCloser) {
+		err = reader.Close()
+		if err != nil {
+
+		}
+	}(reader)
+
+	// 创建本地文件
+	localFile, err := os.Create(targetFilePath)
+	if err != nil {
+		return err
+	}
+	defer func(localFile *os.File) {
+		err = localFile.Close()
+		if err != nil {
+
+		}
+	}(localFile)
+
+	// 将文件内容复制到本地文件
+	_, err = io.Copy(localFile, reader)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (hfM *harborFileManager) DeleteImage(ctx context.Context, harborRepo, tag string) error {
@@ -211,48 +333,5 @@ func (hfM *harborFileManager) DeleteRepo(baseHarborServerUrl, projectName, repoN
 		return fmt.Errorf("failed to delete repo. Status code: %d, project name: %s, repo name: %s", resp.StatusCode, projectName, repoName)
 	}
 
-	return nil
-}
-
-func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
-	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, tag, &types.BlobInfo{
-		Digest:               blobInfo.Digest,
-		Size:                 0,
-		URLs:                 nil,
-		Annotations:          nil,
-		MediaType:            "",
-		CompressionOperation: 0,
-		CompressionAlgorithm: nil,
-		CryptoOperation:      0,
-	})
-	if err != nil {
-		return err
-	}
-
-	defer func(reader io.ReadCloser) {
-		err = reader.Close()
-		if err != nil {
-
-		}
-	}(reader)
-
-	// 创建本地文件
-	localFile, err := os.Create(targetFilePath)
-	if err != nil {
-		return err
-	}
-	defer func(localFile *os.File) {
-		err = localFile.Close()
-		if err != nil {
-
-		}
-	}(localFile)
-
-	// 将文件内容复制到本地文件
-	_, err = io.Copy(localFile, reader)
-	if err != nil {
-		return err
-	}
 	return nil
 }

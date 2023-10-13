@@ -16,7 +16,7 @@ import (
 	"github.com/containers/image/v5/types"
 )
 
-const defaultVmImagesRootCacheDir = "/var/lib/vmimages/"
+const defaultRootHarborCacheDir = "/var/lib/harbor-file-cache/"
 
 func createOCIImageLayout(ociImageDir string) error {
 	err := createDirectorIfNotExist(ociImageDir)
@@ -255,7 +255,7 @@ func uploadLocalImageToHarbor(ctx context.Context, imageDirectory, harborUsernam
 
 func initVmImagesRootCacheDir(cacheDir string) error {
 	if cacheDir == "" {
-		cacheDir = defaultVmImagesRootCacheDir
+		cacheDir = defaultRootHarborCacheDir
 	}
 	return createDirectorIfNotExist(cacheDir)
 }

@@ -239,16 +239,7 @@ func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, har
 
 func (hfM *harborFileManager) DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReaderWithBlob(ctx, harborRepo, tag, &types.BlobInfo{
-		Digest:               blobInfo.Digest,
-		Size:                 0,
-		URLs:                 nil,
-		Annotations:          nil,
-		MediaType:            "",
-		CompressionOperation: 0,
-		CompressionAlgorithm: nil,
-		CryptoOperation:      0,
-	})
+	reader, _, err := hfM.GetDownloadReaderWithBlob(ctx, harborRepo, tag, blobInfo)
 	if err != nil {
 		return err
 	}

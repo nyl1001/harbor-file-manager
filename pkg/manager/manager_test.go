@@ -37,15 +37,15 @@ func TestMainThread(t *testing.T) {
 	}
 
 	// Harbor仓库地址和目标文件路径
-	harborRepo := "hub.wanjiedata.com/vmimages/nieyinliang-test-2"
+	harborRepo := "hub.xxxxx.com/vmimages/nieyinliang-test-2"
 	harborTag := "latest"
-	harborUsername := "nyl"
-	harborPassword := "nyl123HUB"
+	harborUsername := "xxxxxxx"
+	harborPassword := "xxxxxxx"
 
 	// 初始化容器引擎
 	ctx := context.Background()
 
-	hfM := SimpleInitHarborFileManager(harborUsername, harborPassword, defaultVmImagesRootCacheDir)
+	hfM := SimpleInitHarborFileManager(harborUsername, harborPassword, defaultRootHarborCacheDir)
 	err = hfM.CreateRepositoryIfNotExist(ctx, harborRepo, harborTag)
 	if err != nil {
 		fmt.Printf("Error hfM.CreateHarborRepositoryIfNotExist: %v\n", err)
@@ -106,12 +106,12 @@ func TestMainThread(t *testing.T) {
 
 func TestDeleteRepo(t *testing.T) {
 
-	harborUsername := "nyl"
-	harborPassword := "nyl123HUB"
+	harborUsername := "xxx"
+	harborPassword := "xxxxx"
 
 	// 初始化容器引擎
 
-	hfM := SimpleInitHarborFileManager(harborUsername, harborPassword, defaultVmImagesRootCacheDir)
+	hfM := SimpleInitHarborFileManager(harborUsername, harborPassword, defaultRootHarborCacheDir)
 	err := hfM.DeleteRepo("https://hub.wanjiedata.com", "vmimages", "nieyinliang-test-2")
 	if err != nil {
 		fmt.Printf("Error hfM.CreateHarborRepositoryIfNotExist: %v\n", err)

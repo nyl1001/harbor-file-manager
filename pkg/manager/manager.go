@@ -26,10 +26,10 @@ type HarborFileManager interface {
 }
 
 type harborFileManager struct {
-	hifConf *hfMConfig
+	hifConf *HfMConfig
 }
 
-type hfMConfig struct {
+type HfMConfig struct {
 	HarborUserName     string
 	HarborUserPassword string
 	RootCacheDir       string
@@ -42,7 +42,7 @@ var hfMOnce sync.Once
 func SimpleNewHarborFileManagerOnce(harborUserName, harborUserPassword, rootCacheDir string) HarborFileManager {
 	hfMOnce.Do(func() {
 		hfManager = &harborFileManager{
-			&hfMConfig{
+			&HfMConfig{
 				HarborUserName:     harborUserName,
 				HarborUserPassword: harborUserPassword,
 				RootCacheDir:       rootCacheDir,
@@ -52,7 +52,7 @@ func SimpleNewHarborFileManagerOnce(harborUserName, harborUserPassword, rootCach
 	return hfManager
 }
 
-func NewHarborFileManagerOnce(config *hfMConfig) HarborFileManager {
+func NewHarborFileManagerOnce(config *HfMConfig) HarborFileManager {
 	hfMOnce.Do(func() {
 		hfManager = &harborFileManager{
 			config,

@@ -29,34 +29,6 @@ type harborFileManager struct {
 	hifConf *hfMConfig
 }
 
-func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, harborRepo, tag string) error {
-	// 检查远程仓库是否已存在
-	exists, err := checkRemoteRepoExists(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		ociImageName := extractImageName(harborRepo)
-		ociImageDir := "/tmp/" + ociImageName
-		err = createOCIImageLayout(ociImageDir)
-		if err != nil {
-			return err
-		}
-		// 创建仓库
-		if err = createHarborRepository(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo); err != nil {
-			return err
-		}
-		// 上传第一个image，必要操作
-		err = uploadLocalImageToHarbor(ctx, ociImageDir, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo, tag)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type hfMConfig struct {
 	HarborUserName     string
 	HarborUserPassword string
@@ -87,6 +59,34 @@ func NewHarborFileManagerOnce(config *hfMConfig) HarborFileManager {
 		}
 	})
 	return hfManager
+}
+
+func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, harborRepo, tag string) error {
+	// 检查远程仓库是否已存在
+	exists, err := checkRemoteRepoExists(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		ociImageName := extractImageName(harborRepo)
+		ociImageDir := "/tmp/" + ociImageName
+		err = createOCIImageLayout(ociImageDir)
+		if err != nil {
+			return err
+		}
+		// 创建仓库
+		if err = createHarborRepository(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo); err != nil {
+			return err
+		}
+		// 上传第一个image，必要操作
+		err = uploadLocalImageToHarbor(ctx, ociImageDir, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo, tag)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error) {

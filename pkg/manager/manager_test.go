@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	defaultHarborUserName     = "nyl"
-	defaultHarborUserPassword = "nyl123HUB"
-	defaultHarborProject      = "hub.wanjiedata.com/vmimages"
+	defaultHarborUserName     = "xxx"
+	defaultHarborUserPassword = "xxxx"
+	defaultHarborProject      = "hub.xxxx.com/vmimages"
 )
 
 func TestMainThread(t *testing.T) {
@@ -43,7 +43,7 @@ func TestMainThread(t *testing.T) {
 	}
 
 	// Harbor仓库地址和目标文件路径
-	harborRepo := defaultHarborProject + "/nieyinliang-haha"
+	harborRepo := defaultHarborProject + "/nieyinliang-wuwu"
 	harborTag := "latest"
 	harborUsername := defaultHarborUserName
 	harborPassword := defaultHarborUserPassword

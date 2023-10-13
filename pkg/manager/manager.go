@@ -75,10 +75,6 @@ func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, ha
 		if err != nil {
 			return err
 		}
-		// 创建仓库
-		if err = createHarborRepository(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo); err != nil {
-			return err
-		}
 		// 上传第一个image，必要操作
 		err = uploadLocalImageToHarbor(ctx, ociImageDir, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo, tag)
 		if err != nil {

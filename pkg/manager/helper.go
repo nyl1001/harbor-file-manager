@@ -116,37 +116,6 @@ func createDigestFile(directory string, content []byte) (string, error) {
 	return digestStr, nil
 }
 
-// 创建Harbor仓库
-func createHarborRepository(ctx context.Context, harborUsername, harborPassword, harborRepo string) error {
-
-	harborRepoURL := harborRepo
-
-	// 使用github.com/containers/image库创建Harbor仓库
-	repoCtx, err := alltransports.ParseImageName("docker://" + harborRepoURL)
-	if err != nil {
-		return err
-	}
-
-	// 创建SystemContext，设置Harbor账号密码
-	systemContext := &types.SystemContext{
-		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: harborUsername,
-			Password: harborPassword,
-		},
-	}
-
-	destRef, err := repoCtx.NewImageDestination(ctx, systemContext)
-	if err != nil {
-		return err
-	}
-
-	// Commit用于创建仓库
-	if err = destRef.Commit(ctx, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
 // 检查远程 Harbor 仓库是否已存在
 func checkRemoteRepoExists(ctx context.Context, harborUsername, harborPassword, harborRepo string) (bool, error) {
 	harborImage := fmt.Sprintf("docker://%s", harborRepo)
@@ -166,24 +135,12 @@ func checkRemoteRepoExists(ctx context.Context, harborUsername, harborPassword, 
 	}
 
 	// 获取远程镜像
-	srcImg, err := refCtx.NewImageSource(ctx, sys)
+	_, err = refCtx.NewImageSource(ctx, sys)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil
 		}
 		return false, fmt.Errorf("error checkRemoteRepoExists call checkRemoteRepoExists NewImageSource: %s", err.Error())
-	}
-
-	// 检查镜像是否存在于本地
-	layerInfos, err := srcImg.LayerInfosForCopy(ctx, nil)
-	if err != nil {
-		fmt.Printf("Error checkRemoteRepoExists checking for local image: %v\n", err)
-		return false, err
-	}
-
-	if len(layerInfos) == 0 {
-		// 图像不存在于本地
-		return false, nil
 	}
 
 	// 图像存在于本地

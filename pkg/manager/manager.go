@@ -67,7 +67,7 @@ var hfManager *harborFileManager
 
 var hfMOnce sync.Once
 
-func SimpleInitHarborFileManager(harborUserName, harborUserPassword, rootCacheDir string) HarborFileManager {
+func SimpleNewHarborFileManagerOnce(harborUserName, harborUserPassword, rootCacheDir string) HarborFileManager {
 	hfMOnce.Do(func() {
 		hfManager = &harborFileManager{
 			&hfMConfig{
@@ -80,7 +80,7 @@ func SimpleInitHarborFileManager(harborUserName, harborUserPassword, rootCacheDi
 	return hfManager
 }
 
-func InitHarborFileManager(config *hfMConfig) HarborFileManager {
+func NewHarborFileManagerOnce(config *hfMConfig) HarborFileManager {
 	hfMOnce.Do(func() {
 		hfManager = &harborFileManager{
 			config,

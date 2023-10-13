@@ -1,4 +1,4 @@
-# harbor-file-service
+# harbor-file-manager
 
 # 依赖包安装
 

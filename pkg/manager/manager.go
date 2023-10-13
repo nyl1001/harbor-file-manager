@@ -16,6 +16,7 @@ import (
 type HarborFileManager interface {
 	CreateRepositoryIfNotExist(ctx context.Context, harborRepo string, tag string) error
 	UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error)
+	DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error
 	GetDownloadReader(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error)
 	DeleteImage(ctx context.Context, harborRepo, tag string) error
 	DeleteRepo(harborAPI, projectName, repoName string) error
@@ -199,11 +200,59 @@ func (hfM *harborFileManager) DeleteRepo(baseHarborServerUrl, projectName, repoN
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to delete repo. Status code: %d, project name: %s, repo name: %s", resp.StatusCode, projectName, repoName)
 	}
 
+	return nil
+}
+
+func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
+	// 从Harbor下载文件
+	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, tag, &types.BlobInfo{
+		Digest:               blobInfo.Digest,
+		Size:                 0,
+		URLs:                 nil,
+		Annotations:          nil,
+		MediaType:            "",
+		CompressionOperation: 0,
+		CompressionAlgorithm: nil,
+		CryptoOperation:      0,
+	})
+	if err != nil {
+		return err
+	}
+
+	defer func(reader io.ReadCloser) {
+		err = reader.Close()
+		if err != nil {
+
+		}
+	}(reader)
+
+	// 创建本地文件
+	localFile, err := os.Create(targetFilePath)
+	if err != nil {
+		return err
+	}
+	defer func(localFile *os.File) {
+		err = localFile.Close()
+		if err != nil {
+
+		}
+	}(localFile)
+
+	// 将文件内容复制到本地文件
+	_, err = io.Copy(localFile, reader)
+	if err != nil {
+		return err
+	}
 	return nil
 }

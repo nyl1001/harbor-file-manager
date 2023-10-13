@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	defaultHarborUserName     = "xxx"
-	defaultHarborUserPassword = "xxxx"
+	defaultHarborUserName     = "nyl"
+	defaultHarborUserPassword = "nyl123HUB"
+	defaultHarborProject      = "hub.wanjiedata.com/vmimages"
 )
 
 func TestMainThread(t *testing.T) {
@@ -42,7 +43,7 @@ func TestMainThread(t *testing.T) {
 	}
 
 	// Harbor仓库地址和目标文件路径
-	harborRepo := "hub.xxxxx.com/vmimages/nieyinliang-test-2"
+	harborRepo := defaultHarborProject + "/nieyinliang-haha"
 	harborTag := "latest"
 	harborUsername := defaultHarborUserName
 	harborPassword := defaultHarborUserPassword
@@ -61,11 +62,11 @@ func TestMainThread(t *testing.T) {
 
 	blobInfo, err := hfM.UploadFile(ctx, localFilePath, harborRepo, harborTag)
 	if err != nil {
-		fmt.Printf("Error hfM.UploadFile uploading file: %v\n", err)
+		fmt.Printf("error hfM.UploadFile uploading file: %v\n", err)
 		return
 	}
 
-	fmt.Println("File uploaded to Harbor successfully!")
+	fmt.Println("file uploaded to Harbor successfully!")
 
 	// 从Harbor下载文件
 	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag, string(blobInfo.Digest))
@@ -93,7 +94,7 @@ func TestMainThread(t *testing.T) {
 		return
 	}
 	defer func(localFile *os.File) {
-		err := localFile.Close()
+		err = localFile.Close()
 		if err != nil {
 
 		}
@@ -106,7 +107,7 @@ func TestMainThread(t *testing.T) {
 		return
 	}
 
-	fmt.Println("File downloaded from Harbor and cached locally successfully!")
+	fmt.Println("file downloaded from Harbor and cached locally successfully!")
 }
 
 func TestDeleteRepo(t *testing.T) {
@@ -119,7 +120,7 @@ func TestDeleteRepo(t *testing.T) {
 	hfM := SimpleNewOnce(harborUsername, harborPassword, defaultRootHarborCacheDir)
 	err := hfM.DeleteRepo("https://hub.wanjiedata.com", "vmimages", "nieyinliang-test-2")
 	if err != nil {
-		fmt.Printf("Error hfM.CreateHarborRepositoryIfNotExist: %v\n", err)
+		fmt.Printf("error hfM.CreateHarborRepositoryIfNotExist: %v\n", err)
 		return
 	}
 

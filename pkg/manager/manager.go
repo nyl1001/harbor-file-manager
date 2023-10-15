@@ -108,7 +108,8 @@ func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, har
 			Username: hfM.hifConf.HarborUserName,
 			Password: hfM.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir:                    hfM.hifConf.RootCacheDir,
+		DockerRegistryPushPrecomputeDigests: true,
 	}
 
 	destImg, err := destCtx.NewImageDestination(ctx, sys)
@@ -116,11 +117,25 @@ func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, har
 		return nil, err
 	}
 
-	// 使用 PutBlob 上传文件，并命中本地缓存
-	blobInfo, err := destImg.PutBlob(ctx, localFile, types.BlobInfo{}, blobinfocache.DefaultCache(sys), false)
+	// 获取文件信息
+	fileInfo, err := localFile.Stat()
 	if err != nil {
 		return nil, err
 	}
+	// 获取文件大小
+	fileSize := fileInfo.Size()
+
+	// 使用 PutBlob 上传文件，并命中本地缓存， none.NoCache
+	blobInfo, err := destImg.PutBlob(ctx, localFile, types.BlobInfo{Size: fileSize}, blobinfocache.DefaultCache(sys), false)
+	if err != nil {
+		return nil, err
+	}
+
+	err = destImg.Commit(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &blobInfo, nil
 }
 

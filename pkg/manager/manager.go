@@ -15,7 +15,7 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
-type HarborFileManager interface {
+type FileManager interface {
 	CreateRepositoryIfNotExist(ctx context.Context, harborRepo string, tag string) error
 	UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error)
 	DownloadFile(ctx context.Context, harborRepo, tag string, targetFilePath string) error
@@ -30,45 +30,45 @@ type HarborFileManager interface {
 	GetLatestArtifactDigest(ctx context.Context, harborRepo string) (string, error)
 }
 
-type harborFileManager struct {
-	hifConf *HfMConfig
+type fileManager struct {
+	hifConf *FmConfig
 }
 
-type HfMConfig struct {
+type FmConfig struct {
 	HarborUserName     string
 	HarborUserPassword string
 	RootCacheDir       string
 }
 
-var hfManager *harborFileManager
+var fmanager *fileManager
 
-var hfMOnce sync.Once
+var fmOnce sync.Once
 
-func SimpleNewOnce(harborUserName, harborUserPassword, rootCacheDir string) HarborFileManager {
-	hfMOnce.Do(func() {
-		hfManager = &harborFileManager{
-			&HfMConfig{
+func SimpleNewOnce(harborUserName, harborUserPassword, rootCacheDir string) FileManager {
+	fmOnce.Do(func() {
+		fmanager = &fileManager{
+			&FmConfig{
 				HarborUserName:     harborUserName,
 				HarborUserPassword: harborUserPassword,
 				RootCacheDir:       rootCacheDir,
 			},
 		}
 	})
-	return hfManager
+	return fmanager
 }
 
-func NewOnce(config *HfMConfig) HarborFileManager {
-	hfMOnce.Do(func() {
-		hfManager = &harborFileManager{
+func NewOnce(config *FmConfig) FileManager {
+	fmOnce.Do(func() {
+		fmanager = &fileManager{
 			config,
 		}
 	})
-	return hfManager
+	return fmanager
 }
 
-func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, harborRepo, tag string) error {
+func (fm *fileManager) CreateRepositoryIfNotExist(ctx context.Context, harborRepo, tag string) error {
 	// 检查远程仓库是否已存在
-	exists, err := checkRemoteRepoExists(ctx, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo)
+	exists, err := checkRemoteRepoExists(ctx, fm.hifConf.HarborUserName, fm.hifConf.HarborUserPassword, harborRepo)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, ha
 			return err
 		}
 		// 上传第一个image，必要操作
-		err = uploadLocalImageToHarbor(ctx, ociImageDir, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword, harborRepo, tag)
+		err = uploadLocalImageToHarbor(ctx, ociImageDir, fm.hifConf.HarborUserName, fm.hifConf.HarborUserPassword, harborRepo, tag)
 		if err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ func (hfM *harborFileManager) CreateRepositoryIfNotExist(ctx context.Context, ha
 	return nil
 }
 
-func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error) {
+func (fm *fileManager) UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error) {
 	// 打开本地文件
 	localFile, err := os.Open(localFilePath)
 	if err != nil {
@@ -110,10 +110,10 @@ func (hfM *harborFileManager) UploadFile(ctx context.Context, localFilePath, har
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir:                    hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir:                    fm.hifConf.RootCacheDir,
 		DockerRegistryPushPrecomputeDigests: true,
 	}
 
@@ -229,7 +229,7 @@ func getLatestLayerDigestString(ctx context.Context, srcImg types.ImageSource) (
 	return realDigestStr, nil
 }
 
-func (hfM *harborFileManager) GetLatestLayerDigest(ctx context.Context, harborRepo, tag string) (string, error) {
+func (fm *fileManager) GetLatestLayerDigest(ctx context.Context, harborRepo, tag string) (string, error) {
 	// 准备下载的源路径
 	srcRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s:%s", harborRepo, tag))
 	if err != nil {
@@ -238,10 +238,10 @@ func (hfM *harborFileManager) GetLatestLayerDigest(ctx context.Context, harborRe
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir: fm.hifConf.RootCacheDir,
 	}
 
 	// 使用 image.NewImage 创建一个镜像对象
@@ -256,20 +256,20 @@ func (hfM *harborFileManager) GetLatestLayerDigest(ctx context.Context, harborRe
 	return digestStr, nil
 }
 
-func (hfM *harborFileManager) GetLatestArtifactDigest(ctx context.Context, harborRepo string) (string, error) {
+func (fm *fileManager) GetLatestArtifactDigest(ctx context.Context, harborRepo string) (string, error) {
 	harborHostname, projectName, repoName, err := parseHarborURL(harborRepo)
 	if err != nil {
 		return "", err
 	}
-	latestDigest, err := GetLatestArtifactDigest(ctx, "https://"+harborHostname, projectName, repoName, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword)
+	latestDigest, err := GetLatestArtifactDigest(ctx, "https://"+harborHostname, projectName, repoName, fm.hifConf.HarborUserName, fm.hifConf.HarborUserPassword)
 	if err != nil {
 		return "", err
 	}
 	return latestDigest, nil
 }
 
-func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo, tag string) (io.ReadCloser, int64, error) {
-	err := initRootCacheDir(hfM.hifConf.RootCacheDir)
+func (fm *fileManager) GetDownloadReader(ctx context.Context, harborRepo, tag string) (io.ReadCloser, int64, error) {
+	err := initRootCacheDir(fm.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -281,10 +281,10 @@ func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo,
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir: fm.hifConf.RootCacheDir,
 	}
 
 	// 使用 image.NewImage 创建一个镜像对象
@@ -293,7 +293,7 @@ func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo,
 		return nil, 0, err
 	}
 
-	latestDigest, err := hfM.GetLatestArtifactDigest(ctx, harborRepo)
+	latestDigest, err := fm.GetLatestArtifactDigest(ctx, harborRepo)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -314,9 +314,9 @@ func (hfM *harborFileManager) GetDownloadReader(ctx context.Context, harborRepo,
 	return reader, size, nil
 }
 
-func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string) error {
+func (fm *fileManager) DownloadFile(ctx context.Context, harborRepo, tag, targetFilePath string) error {
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, tag)
+	reader, _, err := fm.GetDownloadReader(ctx, harborRepo, tag)
 	if err != nil {
 		return err
 	}
@@ -348,8 +348,8 @@ func (hfM *harborFileManager) DownloadFile(ctx context.Context, harborRepo, tag,
 	return nil
 }
 
-func (hfM *harborFileManager) GetDownloadReaderWithDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
-	err := initRootCacheDir(hfM.hifConf.RootCacheDir)
+func (fm *fileManager) GetDownloadReaderWithDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
+	err := initRootCacheDir(fm.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -361,10 +361,10 @@ func (hfM *harborFileManager) GetDownloadReaderWithDigest(ctx context.Context, h
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir: fm.hifConf.RootCacheDir,
 	}
 
 	// 使用 image.NewImage 创建一个镜像对象
@@ -390,9 +390,9 @@ func (hfM *harborFileManager) GetDownloadReaderWithDigest(ctx context.Context, h
 	return reader, size, nil
 }
 
-func (hfM *harborFileManager) DownloadFileWithDigest(ctx context.Context, harborRepo, tag, digestStr, targetFilePath string) error {
+func (fm *fileManager) DownloadFileWithDigest(ctx context.Context, harborRepo, tag, digestStr, targetFilePath string) error {
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReaderWithDigest(ctx, harborRepo, tag, digestStr)
+	reader, _, err := fm.GetDownloadReaderWithDigest(ctx, harborRepo, tag, digestStr)
 	if err != nil {
 		return err
 	}
@@ -424,8 +424,8 @@ func (hfM *harborFileManager) DownloadFileWithDigest(ctx context.Context, harbor
 	return nil
 }
 
-func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error) {
-	err := initRootCacheDir(hfM.hifConf.RootCacheDir)
+func (fm *fileManager) GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error) {
+	err := initRootCacheDir(fm.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -437,10 +437,10 @@ func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, har
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir: fm.hifConf.RootCacheDir,
 	}
 
 	// 使用 image.NewImage 创建一个镜像对象
@@ -457,9 +457,9 @@ func (hfM *harborFileManager) GetDownloadReaderWithBlob(ctx context.Context, har
 	return reader, size, nil
 }
 
-func (hfM *harborFileManager) DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
+func (fm *fileManager) DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error {
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReaderWithBlob(ctx, harborRepo, tag, blobInfo)
+	reader, _, err := fm.GetDownloadReaderWithBlob(ctx, harborRepo, tag, blobInfo)
 	if err != nil {
 		return err
 	}
@@ -491,7 +491,7 @@ func (hfM *harborFileManager) DownloadFileWithBlob(ctx context.Context, harborRe
 	return nil
 }
 
-func (hfM *harborFileManager) DeleteImage(ctx context.Context, harborRepo, tag string) error {
+func (fm *fileManager) DeleteImage(ctx context.Context, harborRepo, tag string) error {
 
 	// 准备上传的目标路径
 	destRef := fmt.Sprintf("%s:%s", harborRepo, tag)
@@ -505,10 +505,10 @@ func (hfM *harborFileManager) DeleteImage(ctx context.Context, harborRepo, tag s
 	// 创建 SystemContext，设置 Harbor 账号密码
 	sys := &types.SystemContext{
 		DockerAuthConfig: &types.DockerAuthConfig{
-			Username: hfM.hifConf.HarborUserName,
-			Password: hfM.hifConf.HarborUserPassword,
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
 		},
-		BlobInfoCacheDir: hfM.hifConf.RootCacheDir,
+		BlobInfoCacheDir: fm.hifConf.RootCacheDir,
 	}
 
 	err = destCtx.DeleteImage(ctx, sys)
@@ -518,13 +518,13 @@ func (hfM *harborFileManager) DeleteImage(ctx context.Context, harborRepo, tag s
 	return nil
 }
 
-func (hfM *harborFileManager) DeleteRepo(ctx context.Context, harborRepo string) error {
+func (fm *fileManager) DeleteRepo(ctx context.Context, harborRepo string) error {
 	// 构建项目 API URL
 	harborHostname, projectName, repoName, err := parseHarborURL(harborRepo)
 	if err != nil {
 		return err
 	}
-	err = DeleteHarborRepo(ctx, "https://"+harborHostname, projectName, repoName, hfM.hifConf.HarborUserName, hfM.hifConf.HarborUserPassword)
+	err = DeleteHarborRepo(ctx, "https://"+harborHostname, projectName, repoName, fm.hifConf.HarborUserName, fm.hifConf.HarborUserPassword)
 	if err != nil {
 		return err
 	}

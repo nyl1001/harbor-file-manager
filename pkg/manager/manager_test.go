@@ -11,7 +11,7 @@ import (
 
 const (
 	defaultHarborUserName     = "xxx"
-	defaultHarborUserPassword = "xxxx"
+	defaultHarborUserPassword = "xxxxx"
 	defaultHarborProject      = "hub.xxxx.com/vmimages"
 )
 
@@ -41,12 +41,12 @@ func TestMainThread(t *testing.T) {
         ]
     }`)
 
-	if err := createFile(localFilePath, testFileContentJSON); err != nil {
+	if err = createFile(localFilePath, testFileContentJSON); err != nil {
 		return
 	}
 
 	// Harbor仓库地址和目标文件路径
-	harborRepo := defaultHarborProject + "/nieyinliang-wuwu"
+	harborRepo := defaultHarborProject + "/nieyinliang-xx"
 	harborTag := "latest"
 	harborUsername := defaultHarborUserName
 	harborPassword := defaultHarborUserPassword
@@ -73,8 +73,9 @@ func TestMainThread(t *testing.T) {
 	fmt.Println("blobInfo:", blobInfo)
 
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag, string(blobInfo.Digest))
+	reader, _, err := hfM.GetDownloadReaderWithDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
 	if err != nil {
+
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
 	}
@@ -145,9 +146,10 @@ func TestUploadVmImages(t *testing.T) {
 	}
 
 	fmt.Println("file uploaded to Harbor successfully!")
+	fmt.Println("blobInfo:", blobInfo)
 
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag, string(blobInfo.Digest))
+	reader, _, err := hfM.GetDownloadReaderWithDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
@@ -193,14 +195,65 @@ func TestDeleteRepo(t *testing.T) {
 	harborUsername := defaultHarborUserName
 	harborPassword := defaultHarborUserPassword
 
+	harborRepo := defaultHarborProject + "/ubuntu-22.04-nvidia-535-cuda-11.img"
 	// 初始化容器引擎
 
 	hfM := SimpleNewOnce(harborUsername, harborPassword, defaultRootHarborCacheDir)
-	err := hfM.DeleteRepo("https://hub.wanjiedata.com", "vmimages", "nieyinliang-test-2")
+	err := hfM.DeleteRepo(context.Background(), harborRepo)
 	if err != nil {
 		fmt.Printf("error hfM.CreateHarborRepositoryIfNotExist: %v\n", err)
 		return
 	}
 
 	fmt.Println("delete repo from Harbor successfully!")
+}
+
+// /Users/nieyinliang/work/vm-images/ubuntu:22.04-nvidia-535-cuda-11.img
+func TestGetLayerDigest(t *testing.T) {
+	// Harbor仓库地址和目标文件路径
+	harborRepo := defaultHarborProject + "/ubuntu-22.04-nvidia-535-cuda-11.img"
+	harborTag := "latest"
+
+	harborUsername := defaultHarborUserName
+	harborPassword := defaultHarborUserPassword
+
+	// 初始化容器引擎
+	ctx := context.Background()
+
+	hfM := SimpleNewOnce(harborUsername, harborPassword, defaultRootHarborCacheDir)
+
+	// 从Harbor下载文件
+	digestStr, err := hfM.GetLatestLayerDigest(ctx, harborRepo, harborTag)
+	if err != nil {
+		fmt.Printf("Error downloading file: %v\n", err)
+		return
+	}
+
+	fmt.Println(digestStr)
+	fmt.Println("file downloaded from Harbor and cached locally successfully!")
+}
+
+// /Users/nieyinliang/work/vm-images/ubuntu:22.04-nvidia-535-cuda-11.img
+func TestGetLatestArtifactDigest(t *testing.T) {
+	// Harbor仓库地址和目标文件路径
+	//harborRepo := defaultHarborProject + "/ubuntu-22.04-nvidia-535-cuda-11.img"
+	harborRepo := "https://" + defaultHarborProject + "/ubuntu-22.04-nvidia-535-cuda-11.img"
+
+	harborUsername := defaultHarborUserName
+	harborPassword := defaultHarborUserPassword
+
+	// 初始化容器引擎
+	ctx := context.Background()
+
+	hfM := SimpleNewOnce(harborUsername, harborPassword, defaultRootHarborCacheDir)
+
+	// 从Harbor下载文件
+	digestStr, err := hfM.GetLatestArtifactDigest(ctx, harborRepo)
+	if err != nil {
+		fmt.Printf("Error downloading file: %v\n", err)
+		return
+	}
+
+	fmt.Println(digestStr)
+	fmt.Println("file downloaded from Harbor and cached locally successfully!")
 }

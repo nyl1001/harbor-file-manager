@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,7 @@ func createOCIImageLayout(ociImageDir string) error {
 	}
 
 	blobsShaDir := filepath.Join(blobsDir, "sha256")
-	if err := os.MkdirAll(blobsShaDir, os.ModePerm); err != nil {
+	if err = os.MkdirAll(blobsShaDir, os.ModePerm); err != nil {
 		return err
 	}
 	// 创建空的 config 文件
@@ -68,12 +69,12 @@ func createOCIImageLayout(ociImageDir string) error {
 	configJSON := []byte(fmt.Sprintf(`{
 		"mediaType": "application/vnd.oci.image.config.v1+json",
 		"digest": "%s",
-		"size": 123,
+		"size": %d,
 		"config": {
 			"user": "1000:1000",
 			"Cmd": ["echo", "Hello, OCI Image!"]
 		}
-	}`, configDigest))
+	}`, configDigest, len(string(configContent))))
 
 	if err = createFile(filepath.Join(blobsDir, "sha256", configDigest), configJSON); err != nil {
 		return err
@@ -221,23 +222,57 @@ func createDirectorIfNotExist(directoryPath string) error {
 	return err
 }
 
-func extractImageName(imageURL string) string {
+func extractProjectNameAndRepoName(repoPathURI string) (string, string) {
 	// 使用字符串分割函数来获取最后一个部分
-	mainParts := strings.Split(imageURL, "/")
-	if len(mainParts) > 0 {
-		lastMainPart := mainParts[len(mainParts)-1]
-		if strings.Contains(lastMainPart, ":") {
-			subParts := strings.Split(lastMainPart, ":")
-			if len(subParts) > 2 {
-				imageNameParts := subParts[:len(subParts)-1]
-				return strings.Join(imageNameParts, "-")
-			} else if len(subParts) == 1 {
-				return subParts[0]
-			} else {
-				return ""
-			}
-		}
-		return lastMainPart
+	repoPathURI = strings.Trim(repoPathURI, "/")
+	mainParts := strings.Split(repoPathURI, "/")
+	if len(mainParts) == 0 {
+		return "", ""
 	}
-	return ""
+
+	projectName := mainParts[0]
+	lastMainPart := mainParts[len(mainParts)-1]
+	if !strings.Contains(lastMainPart, ":") {
+		return projectName, lastMainPart
+	}
+
+	repoName := ""
+	subParts := strings.Split(lastMainPart, ":")
+	if len(subParts) > 2 {
+		imageNameParts := subParts[:len(subParts)-1]
+		repoName = strings.Join(imageNameParts, "-")
+	} else if len(subParts) == 1 {
+		repoName = subParts[0]
+	} else {
+		repoName = ""
+	}
+
+	return projectName, repoName
+}
+
+func extractHostnameAndPathFromURL(inputURL string) (string, string, error) {
+	inputURL = strings.Trim(inputURL, " ")
+	if !strings.HasPrefix(inputURL, "http") {
+		inputURLArray := strings.Split(inputURL, "/")
+		return inputURLArray[0], strings.TrimPrefix(inputURL, inputURLArray[0]), nil
+	}
+	parsedURL, err := url.Parse(inputURL)
+	if err != nil {
+		return "", "", err
+	}
+	hostname := parsedURL.Hostname()
+	path := parsedURL.Path
+	return hostname, path, nil
+}
+
+func parseHarborURL(harborRepoURL string) (string, string, string, error) {
+	harborHostname, uriPath, err := extractHostnameAndPathFromURL(harborRepoURL)
+	if err != nil {
+		return "", "", "", err
+	}
+	projectName, repoName := extractProjectNameAndRepoName(uriPath)
+	if err != nil {
+		return "", "", "", err
+	}
+	return harborHostname, projectName, repoName, nil
 }

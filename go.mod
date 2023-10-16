@@ -1,4 +1,4 @@
-module github.com/nyl1001/harbor-file-manager
+module github.com/wanjie-dev/wmimage
 
 go 1.21.0
 

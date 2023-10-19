@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/containers/image/v5/pkg/blobinfocache"
@@ -20,14 +19,15 @@ type FileManager interface {
 	UploadFile(ctx context.Context, localFilePath, harborRepo, tag string) (*types.BlobInfo, error)
 	DownloadFile(ctx context.Context, harborRepo, tag string, targetFilePath string) error
 	GetDownloadReader(ctx context.Context, harborRepo, tag string) (io.ReadCloser, int64, error)
-	DownloadFileWithDigest(ctx context.Context, harborRepo, tag, digestStr string, targetFilePath string) error
-	GetDownloadReaderWithDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error)
+	DownloadFileWithBlobDigest(ctx context.Context, harborRepo, tag, digestStr string, targetFilePath string) error
+	GetDownloadReaderWithBlobDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error)
 	DownloadFileWithBlob(ctx context.Context, harborRepo, tag, targetFilePath string, blobInfo *types.BlobInfo) error
 	GetDownloadReaderWithBlob(ctx context.Context, harborRepo, tag string, blobInfo *types.BlobInfo) (io.ReadCloser, int64, error)
 	DeleteImage(ctx context.Context, harborRepo, tag string) error
 	DeleteRepo(ctx context.Context, harborRepo string) error
 	GetLatestLayerDigest(ctx context.Context, harborRepo, tag string) (string, error)
 	GetLatestArtifactDigest(ctx context.Context, harborRepo string) (string, error)
+	GetBlobDigest(ctx context.Context, harborRepo, tag string) (string, error)
 }
 
 type fileManager struct {
@@ -192,7 +192,39 @@ func updateManifest(ctx context.Context, imageRef types.ImageReference, sys *typ
 	return nil
 }
 
-func getLatestLayerDigestString(ctx context.Context, srcImg types.ImageSource) (string, error) {
+func (fm *fileManager) GetBlobDigest(ctx context.Context, harborRepo, tag string) (string, error) {
+	// 准备上传的目标路径
+	destRef := fmt.Sprintf("%s:%s", harborRepo, tag)
+	// 使用 containers/image 库上传文件到Harbor
+	imageRef, err := alltransports.ParseImageName(fmt.Sprintf("docker://%s", destRef))
+	if err != nil {
+		return "", err
+	}
+
+	// 创建 SystemContext，设置 Harbor 账号密码
+	sys := &types.SystemContext{
+		DockerAuthConfig: &types.DockerAuthConfig{
+			Username: fm.hifConf.HarborUserName,
+			Password: fm.hifConf.HarborUserPassword,
+		},
+		BlobInfoCacheDir:                    fm.hifConf.RootCacheDir,
+		DockerRegistryPushPrecomputeDigests: true,
+	}
+
+	// Create an image source based on the reference
+	imageSource, err := imageRef.NewImageSource(ctx, sys)
+	if err != nil {
+		return "", err
+	}
+
+	latestDigest, err := getLatestLayerDigest(ctx, imageSource)
+	if err != nil {
+		return "", err
+	}
+	return latestDigest, nil
+}
+
+func getLatestLayerDigest(ctx context.Context, srcImg types.ImageSource) (string, error) {
 	// Get the existing manifest
 	originalManifest, _, err := srcImg.GetManifest(ctx, nil)
 	if err != nil {
@@ -203,8 +235,6 @@ func getLatestLayerDigestString(ctx context.Context, srcImg types.ImageSource) (
 	if err = json.Unmarshal(originalManifest, &manifestData); err != nil {
 		return "", err
 	}
-
-	fmt.Println("originalManifest", string(originalManifest))
 
 	// 提取 layers 数组
 	layers, ok := manifestData["layers"].([]interface{})
@@ -219,14 +249,7 @@ func getLatestLayerDigestString(ctx context.Context, srcImg types.ImageSource) (
 	if !exists {
 		return "", fmt.Errorf("no digest field found in layer at index 0")
 	}
-	digestStr = strings.TrimLeft(digestStr, "sha256:")
-	if digestStr == "" {
-		return "", fmt.Errorf("digest format error in layer at index 0")
-	}
-
-	realDigestStr := strings.TrimLeft(digestStr, "sha256:")
-
-	return realDigestStr, nil
+	return digestStr, nil
 }
 
 func (fm *fileManager) GetLatestLayerDigest(ctx context.Context, harborRepo, tag string) (string, error) {
@@ -249,7 +272,7 @@ func (fm *fileManager) GetLatestLayerDigest(ctx context.Context, harborRepo, tag
 	if err != nil {
 		return "", err
 	}
-	digestStr, err := getLatestLayerDigestString(ctx, srcImg)
+	digestStr, err := getLatestLayerDigest(ctx, srcImg)
 	if err != nil {
 		return "", err
 	}
@@ -293,7 +316,7 @@ func (fm *fileManager) GetDownloadReader(ctx context.Context, harborRepo, tag st
 		return nil, 0, err
 	}
 
-	latestDigest, err := fm.GetLatestArtifactDigest(ctx, harborRepo)
+	latestDigest, err := getLatestLayerDigest(ctx, srcImg)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -348,7 +371,7 @@ func (fm *fileManager) DownloadFile(ctx context.Context, harborRepo, tag, target
 	return nil
 }
 
-func (fm *fileManager) GetDownloadReaderWithDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
+func (fm *fileManager) GetDownloadReaderWithBlobDigest(ctx context.Context, harborRepo, tag, digestStr string) (io.ReadCloser, int64, error) {
 	err := initRootCacheDir(fm.hifConf.RootCacheDir)
 	if err != nil {
 		return nil, 0, err
@@ -390,9 +413,9 @@ func (fm *fileManager) GetDownloadReaderWithDigest(ctx context.Context, harborRe
 	return reader, size, nil
 }
 
-func (fm *fileManager) DownloadFileWithDigest(ctx context.Context, harborRepo, tag, digestStr, targetFilePath string) error {
+func (fm *fileManager) DownloadFileWithBlobDigest(ctx context.Context, harborRepo, tag, digestStr, targetFilePath string) error {
 	// 从Harbor下载文件
-	reader, _, err := fm.GetDownloadReaderWithDigest(ctx, harborRepo, tag, digestStr)
+	reader, _, err := fm.GetDownloadReaderWithBlobDigest(ctx, harborRepo, tag, digestStr)
 	if err != nil {
 		return err
 	}

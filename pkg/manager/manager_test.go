@@ -73,7 +73,8 @@ func TestMainThread(t *testing.T) {
 	fmt.Println("blobInfo:", blobInfo)
 
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReaderWithDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
+	//reader, _, err := hfM.GetDownloadReaderWithBlobDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
+	reader, _, err := hfM.GetDownloadReader(ctx, harborRepo, harborTag)
 	if err != nil {
 
 		fmt.Printf("Error downloading file: %v\n", err)
@@ -149,7 +150,7 @@ func TestUploadVmImages(t *testing.T) {
 	fmt.Println("blobInfo:", blobInfo)
 
 	// 从Harbor下载文件
-	reader, _, err := hfM.GetDownloadReaderWithDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
+	reader, _, err := hfM.GetDownloadReaderWithBlobDigest(ctx, harborRepo, harborTag, string(blobInfo.Digest))
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
